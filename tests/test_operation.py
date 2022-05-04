@@ -15,13 +15,15 @@ def test_operation(
     # harvest
     chain.sleep(1)
     strategy.harvest()
+    print(strategy.getVirtualPrice())
+    print(strategy.estimatedTotalAssets())
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
     # tend()
     strategy.tend()
 
     # withdrawal
-    vault.withdraw({"from": user})
+    vault.withdraw(vault.balanceOf(user), user, 10_000,{"from": user})
     assert (
         pytest.approx(token.balanceOf(user), rel=RELATIVE_APPROX) == user_balance_before
     )
