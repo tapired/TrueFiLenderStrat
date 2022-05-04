@@ -10,9 +10,11 @@ interface IPool {
    function decimals() external  view returns (uint8) ;
    function balanceOf(address account) external view returns (uint256);
    function totalSupply() external view returns (uint256);
+   // denominated in underlying tokens
    function poolValue() external view returns (uint256);
    function join(uint256 amount) external;
    function collectFees() external ;
-   function liquidExit(uint256 amount) external;
-   function liquidExitPenalty(uint256 amount) external view returns (uint256);
+
+   function liquidExit(uint256 amountPoolTokens) external;
+   function liquidExitPenalty(uint256 amountUnderlying) external view returns (uint256);
 }
