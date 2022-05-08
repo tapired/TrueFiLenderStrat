@@ -10,7 +10,6 @@ import "../interfaces/IGauge.sol";
 import "../interfaces/IUnirouter.sol";
 import "@openzeppelin/contracts/math/Math.sol";
 
-// These are the core Yearn libraries
 import {
     BaseStrategy,
     StrategyParams
@@ -22,8 +21,6 @@ import {
     Address
 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
-// Import interfaces for many popular DeFi projects, or add your own!
-//import "../interfaces/<protocol>/<Interface>.sol";
 
 contract Strategy is BaseStrategy {
     using SafeERC20 for IERC20;
@@ -68,7 +65,7 @@ contract Strategy is BaseStrategy {
     }
 
     function balanceOfWantInGauge() public view returns (uint256) {
-        return _balanceOfLPInGauge().mul(getVirtualPrice());
+        return (_balanceOfLPInGauge().mul(getVirtualPrice())).div(1e18);
     }
 
     function _balanceOfLP() internal view returns (uint256) {
@@ -84,23 +81,24 @@ contract Strategy is BaseStrategy {
     }
 
     function totalLPtoWant() public view returns (uint256) {
-        return (_totalLP().mul(getVirtualPrice())).div(10**6);
+        return (_totalLP().mul(getVirtualPrice())).div(1e18);
     }
 
-    // for some reason I need to hardcode the decimals as 10**6 or its not working the way I want to
-    // pool.decimals() not working ?
     function getVirtualPrice() public view returns (uint256) {
-        return (pool.poolValue().mul(10**6)).div(pool.totalSupply());
+        return (pool.poolValue().mul(1e18)).div(pool.totalSupply());
     }
 
     function estimatedTotalAssets() public view override returns (uint256) {
-        // TODO: Build a more accurate estimate using the value of all positions in terms of `want`
         return totalLPtoWant().add(balanceOfWant());
     }
 
     // pending TRU rewards in gauge
     function pendingRewards() public view returns (uint256) {
         return gauge.claimable(IERC20(address(pool)), address(this));
+    }
+
+    function balanceOfTruRewards() public view returns (uint256) {
+      return IERC20(tru).balanceOf(address(this));
     }
 
     // total LP positions penalty fee
@@ -169,7 +167,6 @@ contract Strategy is BaseStrategy {
     }
 
     function _claimRewards() internal {
-        // thats an ugly way to claim rewards
         if (pendingRewards() > 0) {
             IERC20[] memory tmp = new IERC20[](1);
             tmp[0] = IERC20(address(pool));
@@ -185,27 +182,9 @@ contract Strategy is BaseStrategy {
                 0,
                 swapPath,
                 address(this),
-                block.timestamp + 120
+                block.timestamp
             );
         }
-    }
-
-    function claimFees() external onlyKeepers {
-        _claimFees();
-    }
-
-    function _claimFees() internal {
-        uint256 allPositionsBefore = estimatedTotalAssets();
-        gauge.unstake(IERC20(address(pool)), _balanceOfLPInGauge());
-        pool.liquidExit(_balanceOfLP());
-        pool.join(balanceOfWant());
-        gauge.stake(IERC20(address(pool)), _balanceOfLP());
-
-        // make sure we make profit if not then function reverts
-        require(
-            estimatedTotalAssets() > allPositionsBefore,
-            "fees not covering exit fee"
-        );
     }
 
     function adjustPosition(uint256 _debtOutstanding) internal override {
@@ -249,7 +228,7 @@ contract Strategy is BaseStrategy {
         // we are withdrawing "_amountWant" amount of want worth LP
         uint256 actualWithdrawn =
             Math.min(
-                ((_amountWant.mul(10**6)).div(getVirtualPrice())),
+                ((_amountWant.mul(1e18)).div(getVirtualPrice())),
                 _balanceOfLPInGauge()
             );
         gauge.unstake(IERC20(address(pool)), actualWithdrawn);
@@ -271,6 +250,7 @@ contract Strategy is BaseStrategy {
         if (_balanceOfLPInGauge() > 0) {
             IERC20[] memory tmp = new IERC20[](1);
             tmp[0] = IERC20(address(pool));
+            // exit claims rewards and unstake all LP
             gauge.exit(tmp);
             pool.liquidExit(_balanceOfLP());
         }
@@ -286,9 +266,7 @@ contract Strategy is BaseStrategy {
         override
         returns (address[] memory)
     {
-        address[] memory protected = new address[](2);
-        protected[0] = address(pool);
-        protected[1] = tru;
+
     }
 
     function ethToWant(uint256 _amtInWei)

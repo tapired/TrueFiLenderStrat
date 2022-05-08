@@ -22,6 +22,7 @@ def test_multipleharvests(
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
     pps_before = vault.pricePerShare()
     print("pps before :" , pps_before)
+    print(strategy.getVirtualPrice())
 
     chain.sleep(86400 * 5)
     chain.mine(1)
@@ -53,9 +54,6 @@ def test_multipleharvests(
     print("pps after :" , pps_after)
     assert(pps_after > pps_before)
 
-    # claim fees not reporting so pps should be same
-    strategy.claimFees({"from":strategist})
-    assert(pps_after == vault.pricePerShare())
 
     vault.withdraw(vault.balanceOf(user), user, 10_000, {"from":user})
     print(token.balanceOf(user))
