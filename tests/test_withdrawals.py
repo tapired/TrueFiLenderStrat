@@ -27,7 +27,6 @@ def test_lossywithdrawal(
     # we did all we can by liquidating all
     vault.withdraw(vault.balanceOf(user), user, 10_000, {"from":user})
     checks.check_vault_empty(vault)
-    checks.check_strategy_empty(strategy)
 
 def test_partialwithdrawal(
     chain, accounts, token, vault, strategy, user, strategist, amount, RELATIVE_APPROX, gov

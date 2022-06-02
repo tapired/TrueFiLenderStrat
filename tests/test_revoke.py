@@ -11,12 +11,17 @@ def test_revoke_strategy_from_vault(
     strategy.harvest()
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
+    penaltyFee = strategy.exitPenaltyFeeWant(strategy.totalLP())
+    print(penaltyFee)
+
     # In order to pass this tests, you will need to implement prepareReturn.
     # TODO: uncomment the following lines.
-    # vault.revokeStrategy(strategy.address, {"from": gov})
-    # chain.sleep(1)
-    # strategy.harvest()
-    # assert pytest.approx(token.balanceOf(vault.address), rel=RELATIVE_APPROX) == amount
+    vault.revokeStrategy(strategy.address, {"from": gov})
+    chain.sleep(1)
+    strategy.harvest()
+
+    print(token.balanceOf(vault) + penaltyFee)
+    assert pytest.approx(token.balanceOf(vault) + penaltyFee, rel=RELATIVE_APPROX) == amount
 
 
 def test_revoke_strategy_from_strategy(
@@ -27,9 +32,13 @@ def test_revoke_strategy_from_strategy(
     vault.deposit(amount, {"from": user})
     chain.sleep(1)
     strategy.harvest()
+    penaltyFee = strategy.exitPenaltyFeeWant(strategy.totalLP())
+    print(penaltyFee)
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
     strategy.setEmergencyExit()
     chain.sleep(1)
     strategy.harvest()
-    assert pytest.approx(token.balanceOf(vault.address), rel=RELATIVE_APPROX) == amount
+
+    print(token.balanceOf(vault) + penaltyFee)
+    assert pytest.approx(token.balanceOf(vault) + penaltyFee, rel=RELATIVE_APPROX) == amount

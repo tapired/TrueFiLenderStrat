@@ -25,9 +25,15 @@ def test_migration(
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
     # migrate to a new strategy
-    new_strategy = strategist.deploy(Strategy, vault)
+    new_strategy = strategist.deploy(Strategy, vault, "0xA991356d261fbaF194463aF6DF8f0464F8f1c742",
+    ["0x4C19596f5aAfF459fA38B0f7eD92F11AE6543784","0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2","0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"])
+    penaltyFee = strategy.exitPenaltyFeeWant(strategy.totalLP())
+    penaltyFeeLP = strategy.exitPenaltyFeeLP(strategy.totalLP())
+    print("want penalty",penaltyFee)
+    print("lp penalty", penaltyFeeLP)
     vault.migrateStrategy(strategy, new_strategy, {"from": gov})
     assert (
-        pytest.approx(new_strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX)
+        pytest.approx(new_strategy.estimatedTotalAssets() + penaltyFee, rel=RELATIVE_APPROX)
         == amount
     )
+    print(new_strategy.estimatedTotalAssets())

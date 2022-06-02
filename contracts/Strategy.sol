@@ -21,6 +21,7 @@ import {
     Address
 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
+import {IERC20Metadata} from "@yearnvaults/contracts/yToken.sol";
 
 contract Strategy is BaseStrategy {
     using SafeERC20 for IERC20;
@@ -30,8 +31,8 @@ contract Strategy is BaseStrategy {
     // gauge is constant and same for all pools
     IGauge public constant gauge =
         IGauge(0xec6c3FD795D6e6f202825Ddb56E01b3c128b0b10);
-    address public constant tru =
-        address(0x4C19596f5aAfF459fA38B0f7eD92F11AE6543784);
+    IERC20 public constant tru =
+        IERC20(0x4C19596f5aAfF459fA38B0f7eD92F11AE6543784);
     address public constant unirouter =
         address(0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F);
 
@@ -45,19 +46,24 @@ contract Strategy is BaseStrategy {
     ) public BaseStrategy(_vault) {
         pool = IPool(_pool);
         require(pool.token() == want);
-        require(_checkPath(_swapPath));
+        _checkPath(_swapPath);
         swapPath = _swapPath;
 
         IERC20(address(pool)).approve(address(gauge), type(uint256).max);
         want.approve(address(pool), type(uint256).max);
-        IERC20(tru).approve(unirouter, type(uint256).max);
+        tru.approve(unirouter, type(uint256).max);
     }
 
     // ******** OVERRIDE THESE METHODS FROM BASE CONTRACT ************
 
     function name() external view override returns (string memory) {
-        // Add your own name here, suggestion e.g. "StrategyCreamYFI"
-        return "StrategyTrueFiLender";
+        return
+            string(
+                abi.encodePacked(
+                    "StrategyTruLender",
+                    IERC20Metadata(address(want)).symbol()
+                )
+            );
     }
 
     function balanceOfWant() public view returns (uint256) {
@@ -65,23 +71,23 @@ contract Strategy is BaseStrategy {
     }
 
     function balanceOfWantInGauge() public view returns (uint256) {
-        return (_balanceOfLPInGauge().mul(getVirtualPrice())).div(1e18);
+        return (balanceOfLPInGauge().mul(getVirtualPrice())).div(1e18);
     }
 
     function _balanceOfLP() internal view returns (uint256) {
         return IERC20(address(pool)).balanceOf(address(this));
     }
 
-    function _balanceOfLPInGauge() public view returns (uint256) {
+    function balanceOfLPInGauge() public view returns (uint256) {
         return gauge.staked(IERC20(address(pool)), address(this));
     }
 
-    function _totalLP() internal view returns (uint256) {
-        return _balanceOfLP().add(_balanceOfLPInGauge());
+    function totalLP() public view returns (uint256) {
+        return _balanceOfLP().add(balanceOfLPInGauge());
     }
 
     function totalLPtoWant() public view returns (uint256) {
-        return (_totalLP().mul(getVirtualPrice())).div(1e18);
+        return (totalLP().mul(getVirtualPrice())).div(1e18);
     }
 
     function getVirtualPrice() public view returns (uint256) {
@@ -98,33 +104,36 @@ contract Strategy is BaseStrategy {
     }
 
     function balanceOfTruRewards() public view returns (uint256) {
-      return IERC20(tru).balanceOf(address(this));
+        return tru.balanceOf(address(this));
     }
 
-    // total LP positions penalty fee
-    function exitPenaltyFee() public view returns (uint256) {
-        return pool.liquidExitPenalty(_totalLP());
+    // LP positions penalty fee in terms of want
+    function exitPenaltyFeeLP(uint256 _amount) public view returns (uint256) {
+        return (10_000 - pool.liquidExitPenalty(_amount)).mul(_amount) / 10_000;
+    }
+
+    // LP positions penalty fee in terms of LP
+    function exitPenaltyFeeWant(uint256 _amount) public view returns (uint256) {
+        uint256 lpLoss =
+            (10_000 - pool.liquidExitPenalty(_amount)).mul(_amount) / 10_000;
+
+        return (lpLoss.mul(getVirtualPrice())).div(1e18);
     }
 
     function setSwapPath(address[] memory _swapPath)
         external
         onlyVaultManagers
     {
-        require(_checkPath(_swapPath));
+        _checkPath(_swapPath);
         swapPath = _swapPath;
     }
 
-    function _checkPath(address[] memory _swapPath)
-        internal
-        view
-        returns (bool)
-    {
+    function _checkPath(address[] memory _swapPath) internal {
         require(address(tru) == _swapPath[0], "illegal path!");
         require(
             address(want) == _swapPath[_swapPath.length - 1],
             "illegal path!"
         );
-        return true;
     }
 
     function prepareReturn(uint256 _debtOutstanding)
@@ -140,18 +149,17 @@ contract Strategy is BaseStrategy {
         _swapRewardToWant();
 
         uint256 debt = vault.strategies(address(this)).totalDebt;
-        uint256 eta = estimatedTotalAssets();
-        if (debt > eta) {
-            _loss = debt.sub(eta);
+        uint256 assets = estimatedTotalAssets();
+        if (debt > assets) {
+            _loss = debt.sub(assets);
         } else {
-            _profit = eta.sub(debt);
+            _profit = assets.sub(debt);
         }
 
         uint256 toLiquidate = _debtOutstanding.add(_profit);
         if (toLiquidate > 0) {
-            uint256 _amountFreed;
-            uint256 _withdrawalLoss;
-            (_amountFreed, _withdrawalLoss) = liquidatePosition(toLiquidate);
+            (uint256 _amountFreed, uint256 _withdrawalLoss) =
+                liquidatePosition(toLiquidate);
             _debtPayment = Math.min(_debtOutstanding, _amountFreed);
             _loss = _loss.add(_withdrawalLoss);
         }
@@ -174,8 +182,12 @@ contract Strategy is BaseStrategy {
         }
     }
 
+    function claimRewards() external onlyVaultManagers {
+        _claimRewards();
+    }
+
     function _swapRewardToWant() internal {
-        uint256 rewards = IERC20(tru).balanceOf(address(this));
+        uint256 rewards = tru.balanceOf(address(this));
         if (rewards > 0) {
             IUnirouter(unirouter).swapExactTokensForTokens(
                 rewards,
@@ -187,11 +199,15 @@ contract Strategy is BaseStrategy {
         }
     }
 
+    function swapRewardToWant() external onlyVaultManagers {
+        _swapRewardToWant();
+    }
+
     function adjustPosition(uint256 _debtOutstanding) internal override {
-        uint256 wantBal = balanceOfWant();
-        if (balanceOfWant() > 0) {
+        uint256 wantBalance = balanceOfWant();
+        if (wantBalance > _debtOutstanding) {
             // supply to the pool get LP
-            pool.join(wantBal);
+            pool.join(wantBalance.sub(_debtOutstanding));
         }
         if (_balanceOfLP() > 0) {
             // stake LP to earn TRU
@@ -225,18 +241,17 @@ contract Strategy is BaseStrategy {
 
     function _withdrawSome(uint256 _amountWant) internal {
         // _amounWant / virtualPrice
-        // we are withdrawing "_amountWant" amount of want worth LP
+        // we are withdrawing "_amountWant" amount of want worth LP + penaltyFee of "_amountWant" LP
         uint256 actualWithdrawn =
             Math.min(
                 ((_amountWant.mul(1e18)).div(getVirtualPrice())),
-                _balanceOfLPInGauge()
+                balanceOfLPInGauge()
             );
         gauge.unstake(IERC20(address(pool)), actualWithdrawn);
         pool.liquidExit(actualWithdrawn);
     }
 
     function liquidateAllPositions() internal override returns (uint256) {
-        require(emergencyExit);
         IERC20[] memory tmp = new IERC20[](1);
         tmp[0] = IERC20(address(pool));
         gauge.exit(tmp);
@@ -247,17 +262,14 @@ contract Strategy is BaseStrategy {
     // NOTE: Can override `tendTrigger` and `harvestTrigger` if necessary
 
     function prepareMigration(address _newStrategy) internal override {
-        if (_balanceOfLPInGauge() > 0) {
+        if (balanceOfLPInGauge() > 0) {
             IERC20[] memory tmp = new IERC20[](1);
             tmp[0] = IERC20(address(pool));
             // exit claims rewards and unstake all LP
             gauge.exit(tmp);
             pool.liquidExit(_balanceOfLP());
         }
-        IERC20(tru).safeTransfer(
-            _newStrategy,
-            IERC20(tru).balanceOf(address(this))
-        );
+        tru.safeTransfer(_newStrategy, tru.balanceOf(address(this)));
     }
 
     function protectedTokens()
@@ -265,9 +277,7 @@ contract Strategy is BaseStrategy {
         view
         override
         returns (address[] memory)
-    {
-
-    }
+    {}
 
     function ethToWant(uint256 _amtInWei)
         public

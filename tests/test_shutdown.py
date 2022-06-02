@@ -13,9 +13,6 @@ def test_vault_shutdown_can_withdraw(
     vault.deposit(amount, {"from": user})
     assert token.balanceOf(vault.address) == amount
 
-    if token.balanceOf(user) > 0:
-        token.transfer(ZERO_ADDRESS, token.balanceOf(user), {"from": user})
-
     # Harvest 1: Send funds through the strategy
     strategy.harvest()
     chain.sleep(3600 * 7)
@@ -58,6 +55,8 @@ def test_basic_shutdown(
 
     strategy.harvest()  ## Remove funds from strategy
 
+    penaltyFee = strategy.exitPenaltyFeeWant(strategy.totalLP())
     assert token.balanceOf(strategy) == 0
-    assert token.balanceOf(vault) >= amount  ## The vault has all funds
+    assert pytest.approx(token.balanceOf(vault) + penaltyFee, rel=RELATIVE_APPROX) == amount
+    ## The vault has all funds
     ## NOTE: May want to tweak this based on potential loss during migration

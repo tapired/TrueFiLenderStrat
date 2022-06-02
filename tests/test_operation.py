@@ -23,9 +23,10 @@ def test_operation(
     strategy.tend()
 
     # withdrawal
+    penaltyFee = strategy.exitPenaltyFeeWant(strategy.totalLP())
     vault.withdraw(vault.balanceOf(user), user, 10_000,{"from": user})
     assert (
-        pytest.approx(token.balanceOf(user), rel=RELATIVE_APPROX) == user_balance_before
+        pytest.approx(token.balanceOf(user) + penaltyFee, rel=RELATIVE_APPROX) == user_balance_before
     )
 
 
@@ -37,13 +38,14 @@ def test_emergency_exit(
     vault.deposit(amount, {"from": user})
     chain.sleep(1)
     strategy.harvest()
+    penaltyFee = strategy.exitPenaltyFeeWant(strategy.totalLP())
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
 
     # set emergency and exit
     strategy.setEmergencyExit()
     chain.sleep(1)
     strategy.harvest()
-    assert strategy.estimatedTotalAssets() < amount
+    assert pytest.approx(token.balanceOf(vault) + penaltyFee, rel=RELATIVE_APPROX) == amount
 
 
 def test_profitable_harvest(
@@ -92,10 +94,10 @@ def test_change_debt(
 
     # In order to pass this tests, you will need to implement prepareReturn.
     # TODO: uncomment the following lines.
-    # vault.updateStrategyDebtRatio(strategy.address, 5_000, {"from": gov})
-    # chain.sleep(1)
-    # strategy.harvest()
-    # assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == half
+    vault.updateStrategyDebtRatio(strategy.address, 5_000, {"from": gov})
+    chain.sleep(1)
+    strategy.harvest()
+    assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == half
 
 
 def test_sweep(gov, vault, strategy, token, user, amount, weth, weth_amout):

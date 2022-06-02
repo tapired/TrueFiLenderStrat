@@ -21,6 +21,7 @@ def test_multipleharvests(
     strategy.harvest()
     assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
     pps_before = vault.pricePerShare()
+    print(strategy.estimatedTotalAssets())
     print("pps before :" , pps_before)
     print(strategy.getVirtualPrice())
 
