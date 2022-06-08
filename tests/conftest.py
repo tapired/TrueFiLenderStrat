@@ -112,7 +112,7 @@ def strategy(strategist, keeper, vault, Strategy, gov):
     yield strategy
 
 @pytest.fixture
-def prepare_trade_factory(self, strategy, trade_factory, ymechs_safe, gov):
+def prepare_trade_factory(strategy, trade_factory, ymechs_safe, gov):
     trade_factory.grantRole(
     trade_factory.STRATEGY(),
     strategy.address,

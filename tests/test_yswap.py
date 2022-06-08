@@ -18,6 +18,7 @@ def test_profitable_harvest(
     trade_factory,
     unirouter,
     ymechs_safe,
+    prepare_trade_factory,
     multicall_swapper,
     tru,
     gov,
