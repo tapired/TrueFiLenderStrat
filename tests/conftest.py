@@ -37,11 +37,32 @@ def strategist(accounts):
 def keeper(accounts):
     yield accounts[5]
 
+@pytest.fixture
+def trade_factory():
+    yield Contract("0x99d8679bE15011dEAD893EB4F5df474a4e6a8b29")
+
+
+@pytest.fixture
+def ymechs_safe():
+    yield Contract("0x2C01B4AD51a67E2d8F02208F54dF9aC4c0B778B6")
+
+@pytest.fixture(scope="module")
+def multicall_swapper(interface):
+    yield interface.MultiCallOptimizedSwapper(
+        # "0xceB202F25B50e8fAF212dE3CA6C53512C37a01D2"
+        "0xB2F65F254Ab636C96fb785cc9B4485cbeD39CDAA"
+    )
+
 
 @pytest.fixture
 def token():
     token_address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48"  # this should be the address of the ERC-20 used by the strategy/vault (DAI)
     yield Contract(token_address)
+
+@pytest.fixture
+def tru():
+    tru_address = "0x4C19596f5aAfF459fA38B0f7eD92F11AE6543784"
+    yield Contract(tru_address)
 
 
 @pytest.fixture
@@ -58,6 +79,11 @@ def amount(accounts, token, user):
 def weth():
     token_address = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
     yield Contract(token_address)
+
+@pytest.fixture
+def unirouter():
+    unirouter_address = "0xd9e1cE17f2641f24aE83637ab66a2cca9C378B9F"
+    yield Contract(unirouter_address)
 
 
 @pytest.fixture
@@ -84,6 +110,15 @@ def strategy(strategist, keeper, vault, Strategy, gov):
     strategy.setKeeper(keeper)
     vault.addStrategy(strategy, 10_000, 0, 2 ** 256 - 1, 1_000, {"from": gov})
     yield strategy
+
+@pytest.fixture
+def prepare_trade_factory(self, strategy, trade_factory, ymechs_safe, gov):
+    trade_factory.grantRole(
+    trade_factory.STRATEGY(),
+    strategy.address,
+    {"from": ymechs_safe, "gas_price": "0 gwei"},
+    )
+    strategy.setTradeFactory(trade_factory.address, {"from": gov})
 
 
 @pytest.fixture(scope="session")

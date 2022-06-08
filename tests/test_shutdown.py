@@ -17,13 +17,13 @@ def test_vault_shutdown_can_withdraw(
     strategy.harvest()
     chain.sleep(3600 * 7)
     chain.mine(1)
-    assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == amount
+    assert strategy.estimatedTotalAssets() > amount
 
     ## Set Emergency
     vault.setEmergencyShutdown(True)
-
+    
     ## Withdraw (does it work, do you get what you expect)
-    vault.withdraw({"from": user})
+    vault.withdraw(vault.balanceOf(user), user, 10_000, {"from":user})
 
     assert pytest.approx(token.balanceOf(user), rel=RELATIVE_APPROX) == amount
 
@@ -52,11 +52,10 @@ def test_basic_shutdown(
 
     ## Set emergency
     strategy.setEmergencyExit({"from": strategist})
-
+    penaltyFee = strategy.exitPenaltyFeeWant(strategy.totalLP())
     strategy.harvest()  ## Remove funds from strategy
 
-    penaltyFee = strategy.exitPenaltyFeeWant(strategy.totalLP())
     assert token.balanceOf(strategy) == 0
-    assert pytest.approx(token.balanceOf(vault) + penaltyFee, rel=RELATIVE_APPROX) == amount
+    assert (token.balanceOf(vault) + penaltyFee) > amount
     ## The vault has all funds
     ## NOTE: May want to tweak this based on potential loss during migration

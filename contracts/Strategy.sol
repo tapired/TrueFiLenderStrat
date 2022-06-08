@@ -22,6 +22,7 @@ import {
 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import {IERC20Metadata} from "@yearnvaults/contracts/yToken.sol";
+import {ITradeFactory} from "./ySwap/ITradeFactory.sol";
 
 contract Strategy is BaseStrategy {
     using SafeERC20 for IERC20;
@@ -38,6 +39,7 @@ contract Strategy is BaseStrategy {
 
     address[] public swapPath;
     IPool public pool;
+    address public tradeFactory = address(0);
 
     constructor(
         address _vault,
@@ -145,9 +147,6 @@ contract Strategy is BaseStrategy {
             uint256 _debtPayment
         )
     {
-        _claimRewards();
-        _swapRewardToWant();
-
         uint256 debt = vault.strategies(address(this)).totalDebt;
         uint256 assets = estimatedTotalAssets();
         if (debt > assets) {
@@ -288,4 +287,29 @@ contract Strategy is BaseStrategy {
     {
         return _amtInWei;
     }
+
+
+    // ----------------- YSWAPS FUNCTIONS ---------------------
+
+    function setTradeFactory(address _tradeFactory) external onlyGovernance {
+        if (tradeFactory != address(0)) {
+            _removeTradeFactoryPermissions();
+        }
+
+        // approve and set up trade factory
+        tru.safeApprove(_tradeFactory, type(uint256).max);
+        ITradeFactory tf = ITradeFactory(_tradeFactory);
+        tf.enable(address(tru), address(want));
+        tradeFactory = _tradeFactory;
+    }
+
+    function removeTradeFactoryPermissions() external onlyEmergencyAuthorized {
+        _removeTradeFactoryPermissions();
+    }
+
+    function _removeTradeFactoryPermissions() internal {
+        tru.safeApprove(tradeFactory, 0);
+        tradeFactory = address(0);
+    }
+
 }
