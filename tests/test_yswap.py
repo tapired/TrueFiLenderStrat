@@ -94,6 +94,31 @@ def test_profitable_harvest(
     print(strategy.estimatedTotalAssets())
 
 
+def test_remove_trade_factory_token(strategy, gov, trade_factory, tru, prepare_trade_factory):
+    assert strategy.tradeFactory() == trade_factory.address
+    assert tru.allowance(strategy.address, trade_factory.address) > 0
+
+    strategy.removeTradeFactoryPermissions({"from": gov})
+
+    assert strategy.tradeFactory() != trade_factory.address
+    assert tru.allowance(strategy.address, trade_factory.address) == 0
+
+def test_harvest_reverts_without_trade_factory(strategy, gov, user, vault, token, chain, amount):
+    # Deposit to the vault
+    user_balance_before = token.balanceOf(user)
+    token.approve(vault.address, amount, {"from": user})
+    vault.deposit(amount, {"from": user})
+    assert token.balanceOf(vault.address) == amount
+
+    # harvest
+    chain.sleep(1)
+    chain.mine(1)
+    with brownie.reverts("Trade factory must be set."):
+        strategy.harvest()
+
+###################################################################################################
+
+
 def createTx(to, data):
     inBytes = eth_utils.to_bytes(hexstr=data)
     return [["address", "uint256", "bytes"], [to.address, len(inBytes), inBytes]]

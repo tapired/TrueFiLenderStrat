@@ -147,6 +147,8 @@ contract Strategy is BaseStrategy {
             uint256 _debtPayment
         )
     {
+        require(tradeFactory != address(0), "Trade factory must be set.");
+
         uint256 debt = vault.strategies(address(this)).totalDebt;
         uint256 assets = estimatedTotalAssets();
         if (debt > assets) {
@@ -266,9 +268,9 @@ contract Strategy is BaseStrategy {
             tmp[0] = IERC20(address(pool));
             // exit claims rewards and unstake all LP
             gauge.exit(tmp);
-            pool.liquidExit(_balanceOfLP());
         }
         tru.safeTransfer(_newStrategy, tru.balanceOf(address(this)));
+        IERC20(address(pool)).safeTransfer(_newStrategy, _balanceOfLP());
     }
 
     function protectedTokens()
