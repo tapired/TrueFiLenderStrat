@@ -6,7 +6,7 @@ from utils import checks
 
 
 def test_lossywithdrawal(
-    chain, accounts, token, vault, strategy, user, strategist, amount, RELATIVE_APPROX, gov
+    chain, accounts, token, vault, strategy, user, strategist, amount, RELATIVE_APPROX, gov, prepare_trade_factory
 ):
     # Deposit to the vault
     vault.setPerformanceFee(0, {"from":gov})
@@ -29,7 +29,7 @@ def test_lossywithdrawal(
     checks.check_vault_empty(vault)
 
 def test_partialwithdrawal(
-    chain, accounts, token, vault, strategy, user, strategist, amount, RELATIVE_APPROX, gov
+    chain, accounts, token, vault, strategy, user, strategist, amount, RELATIVE_APPROX, gov, prepare_trade_factory
 ):
    vault.setPerformanceFee(0, {"from":gov})
    vault.setManagementFee(0, {"from":gov})

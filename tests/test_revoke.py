@@ -1,8 +1,8 @@
 import pytest
-
+from utils import checks
 
 def test_revoke_strategy_from_vault(
-    chain, token, vault, strategy, amount, user, gov, RELATIVE_APPROX
+    chain, token, vault, strategy, amount, user, gov, RELATIVE_APPROX, prepare_trade_factory
 ):
     # Deposit to the vault and harvest
     token.approve(vault.address, amount, {"from": user})
@@ -25,7 +25,7 @@ def test_revoke_strategy_from_vault(
 
 
 def test_revoke_strategy_from_strategy(
-    chain, token, vault, strategy, amount, gov, user, RELATIVE_APPROX
+    chain, token, vault, strategy, amount, gov, user, RELATIVE_APPROX, prepare_trade_factory
 ):
     # Deposit to the vault and harvest
     token.approve(vault.address, amount, {"from": user})
@@ -42,3 +42,4 @@ def test_revoke_strategy_from_strategy(
 
     print(token.balanceOf(vault) + penaltyFee)
     assert pytest.approx(token.balanceOf(vault) + penaltyFee, rel=RELATIVE_APPROX) == amount
+    checks.check_strategy_empty(strategy)

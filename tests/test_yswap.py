@@ -122,3 +122,51 @@ def test_harvest_reverts_without_trade_factory(strategy, gov, user, vault, token
 def createTx(to, data):
     inBytes = eth_utils.to_bytes(hexstr=data)
     return [["address", "uint256", "bytes"], [to.address, len(inBytes), inBytes]]
+
+def yswap(chain, strategy, token, tru, unirouter, weth, multicall_swapper, ymechs_safe, gov, trade_factory):
+    strategy.claimRewards({"from":gov})
+    # locked profit
+    chain.sleep(86400)
+
+    token_in = tru
+    token_out = token
+    receiver = strategy.address
+    amount_in = token_in.balanceOf(strategy)
+
+    asyncTradeExecutionDetails = [strategy, token_in, token_out, amount_in, 1]
+    optimizations = [["uint8"], [5]]
+    a = optimizations[0]
+    b = optimizations[1]
+
+    calldata = token_in.approve.encode_input(unirouter, amount_in)
+    t = createTx(token_in, calldata)
+    a = a + t[0]
+    b = b + t[1]
+
+    path = [token_in.address, weth.address, token_out.address]
+    calldata = unirouter.swapExactTokensForTokens.encode_input(
+        amount_in, 0, path, multicall_swapper, 2 ** 256 - 1
+    )
+    t = createTx(unirouter, calldata)
+    a = a + t[0]
+    b = b + t[1]
+
+    expectedOut = unirouter.getAmountsOut(amount_in, path)[2]
+
+    calldata = token_out.transfer.encode_input(receiver, expectedOut)
+    t = createTx(token_out, calldata)
+    a = a + t[0]
+    b = b + t[1]
+
+    transaction = encode_abi_packed(a, b)
+
+    # min out must be at least 1 to ensure that the tx works correctly
+    # trade_factory.execute["uint256, address, uint, bytes"](
+    #    multicall_swapper.address, 1, transaction, {"from": ymechs_safe}
+    # )
+    trade_factory.execute["tuple,address,bytes"](
+        asyncTradeExecutionDetails,
+        multicall_swapper.address,
+        transaction,
+        {"from": ymechs_safe},
+    )
